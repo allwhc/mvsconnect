@@ -1,0 +1,39 @@
+#######################################
+# Syntax Coloring Map for MvsConnect
+#######################################
+
+#######################################
+# Classes (KEYWORD1)
+#######################################
+
+MvsConnect	KEYWORD1
+MvsPin	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+begin	KEYWORD2
+handle	KEYWORD2
+addDigitalOutput	KEYWORD2
+addPWMOutput	KEYWORD2
+addDigitalInput	KEYWORD2
+setPinValue	KEYWORD2
+getPinValue	KEYWORD2
+togglePin	KEYWORD2
+onPinChange	KEYWORD2
+setCustomHTML	KEYWORD2
+addEndpoint	KEYWORD2
+getServer	KEYWORD2
+getDeviceName	KEYWORD2
+getVersion	KEYWORD2
+getPort	KEYWORD2
+getPinCount	KEYWORD2
+isRunning	KEYWORD2
+setDebug	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+MVSCONNECT_DEFAULT_PORT	LITERAL1
