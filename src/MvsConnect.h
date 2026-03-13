@@ -1,26 +1,24 @@
 /*
  * MvsConnect - ESP32 IoT Web Server Library
  * ==========================================
- * Version: 1.2.1
+ * Version: 1.2.2
  * Platform: ESP32 only
  *
- * All-in-one library for ESP32 IoT devices with Android app support.
- * Handles web UI, pin control, and WiFi credential transfer.
+ * Lightweight library for ESP32 IoT devices with Android app support.
+ * Handles custom web pages, WiFi credential transfer, and mDNS discovery.
  *
  * Features:
- * - Built-in web server for device control
- * - Easy pin registration (digital/PWM)
- * - Mobile-friendly responsive UI
- * - WiFi credential transfer from Android app (built-in)
+ * - Built-in web server with custom HTML page support
+ * - WiFi credential transfer from Android app
  * - mDNS service discovery for Android app
- * - Customizable web pages
- * - Callback system for pin changes
+ * - Custom REST API endpoints
+ * - User-Agent authentication (optional)
  *
  * Optional companion library:
  * - MvsOTA_ESP32: For over-the-air firmware updates (separate port)
  *
  * Usage:
- *   #include <mvsconnect.h>
+ *   #include <MvsConnect.h>
  *   #include <mvsota_esp32.h>   // Optional: OTA updates
  *
  *   MvsConnect device("MyDevice", "1.0.0");
@@ -30,12 +28,11 @@
  *     WiFi.mode(WIFI_AP_STA);
  *     WiFi.softAP("MyDevice_mvstech", "password");
  *
- *     device.addDigitalOutput(LED_BUILTIN, "LED");
+ *     device.setCustomHTML([]() { return String("<!DOCTYPE html>..."); });
+ *     device.addEndpoint("/api/data", handler);
  *     device.begin();
  *
- *     // Try to connect to saved WiFi
  *     device.connectToSavedWiFi(10000);
- *
  *     mvsota.begin("MyDevice", "1.0.0");  // Optional
  *   }
  *
@@ -69,25 +66,8 @@
 // CALLBACK TYPES
 // ============================================
 
-typedef void (*MvsConnectPinCallback)(int pin, int value);
 typedef String (*MvsConnectCustomHTMLCallback)();
 typedef void (*MvsConnectWiFiCallback)(const String& ssid);
-
-// ============================================
-// PIN CONTROL STRUCTURE
-// ============================================
-
-struct MvsPin {
-    int pin;
-    String name;
-    String description;
-    bool isOutput;
-    bool isPWM;
-    int value;
-    int pwmChannel;
-    int minValue;
-    int maxValue;
-};
 
 // ============================================
 // MAIN CLASS
@@ -97,7 +77,7 @@ class MvsConnect {
 public:
     /**
      * Constructor
-     * @param deviceName Name of your device (shown in UI and mDNS)
+     * @param deviceName Name of your device (shown in mDNS)
      * @param version Firmware version string
      * @param port Web server port (default: 7689)
      */
@@ -119,55 +99,6 @@ public:
     void handle();
 
     // ============================================
-    // PIN REGISTRATION METHODS
-    // ============================================
-
-    /**
-     * Add a digital output pin (ON/OFF control)
-     * @param pin GPIO pin number
-     * @param name Display name (e.g., "LED", "Relay")
-     * @param description Optional description shown in UI
-     * @param initialValue Initial state (LOW or HIGH)
-     */
-    void addDigitalOutput(int pin, const char* name, const char* description = "", int initialValue = LOW);
-
-    /**
-     * Add a PWM output pin (slider control 0-255)
-     * @param pin GPIO pin number
-     * @param name Display name (e.g., "Brightness", "Speed")
-     * @param description Optional description
-     * @param initialValue Initial PWM value (0-255)
-     */
-    void addPWMOutput(int pin, const char* name, const char* description = "", int initialValue = 0);
-
-    /**
-     * Add a digital input pin (read-only monitoring)
-     * @param pin GPIO pin number
-     * @param name Display name (e.g., "Button", "Sensor")
-     * @param description Optional description
-     */
-    void addDigitalInput(int pin, const char* name, const char* description = "");
-
-    // ============================================
-    // PIN CONTROL METHODS
-    // ============================================
-
-    /**
-     * Set pin value programmatically (also updates web UI)
-     */
-    void setPinValue(int pin, int value);
-
-    /**
-     * Get current pin value
-     */
-    int getPinValue(int pin);
-
-    /**
-     * Toggle digital output pin
-     */
-    int togglePin(int pin);
-
-    // ============================================
     // WIFI CREDENTIAL METHODS
     // ============================================
 
@@ -175,13 +106,6 @@ public:
      * Connect to saved WiFi credentials (from NVS)
      * @param timeout Connection timeout in milliseconds
      * @return true if connected successfully
-     *
-     * Example:
-     *   if (device.connectToSavedWiFi(10000)) {
-     *       Serial.println("Connected to WiFi!");
-     *   } else {
-     *       Serial.println("No saved WiFi or connection failed");
-     *   }
      */
     bool connectToSavedWiFi(unsigned long timeout = 10000);
 
@@ -197,7 +121,6 @@ public:
 
     /**
      * Get current WiFi connection status string
-     * Returns: "CONNECTING: SSID (Xs)", "CONNECTED: SSID IP:x.x.x.x", "FAILED: reason", etc.
      */
     String getWiFiStatus();
 
@@ -211,22 +134,13 @@ public:
     // ============================================
 
     /**
-     * Set callback for when pin value changes (from web UI)
-     */
-    void onPinChange(MvsConnectPinCallback callback);
-
-    /**
-     * Add custom HTML content to the main page
+     * Set custom HTML page served at "/"
+     * Callback must return a complete HTML page (<!DOCTYPE html>...)
      */
     void setCustomHTML(MvsConnectCustomHTMLCallback callback);
 
     /**
      * Set callback for when WiFi credentials are received from Android app
-     *
-     * Example:
-     *   device.onWiFiCredentialsReceived([](const String& ssid) {
-     *       Serial.println("Received WiFi credentials for: " + ssid);
-     *   });
      */
     void onWiFiCredentialsReceived(MvsConnectWiFiCallback callback);
 
@@ -251,7 +165,6 @@ public:
     String getDeviceName();
     String getVersion();
     int getPort();
-    int getPinCount();
     bool isRunning();
 
     /**
@@ -266,20 +179,9 @@ public:
     /**
      * Enable User-Agent authentication
      * When enabled, only requests with matching User-Agent header are allowed.
-     * Requests without correct User-Agent will receive 401 Unauthorized.
      *
-     * @param enabled true to enable authentication, false to disable (default: false)
+     * @param enabled true to enable, false to disable (default: false)
      * @param userAgent Expected User-Agent string (default: "MVStech7689")
-     *
-     * Example:
-     *   // Enable with default User-Agent (MVStech7689)
-     *   device.setUserAgentAuth(true);
-     *
-     *   // Enable with custom User-Agent
-     *   device.setUserAgentAuth(true, "MyCustomAgent123");
-     *
-     *   // Disable authentication (accept all requests)
-     *   device.setUserAgentAuth(false);
      */
     void setUserAgentAuth(bool enabled, const char* userAgent = MVSCONNECT_DEFAULT_USER_AGENT);
 
@@ -301,14 +203,7 @@ private:
     bool _running;
     bool _debug;
 
-    // Pin management
-    static const int MAX_PINS = 20;
-    MvsPin _pins[MAX_PINS];
-    int _pinCount;
-    int _nextPwmChannel;
-
     // Callbacks
-    MvsConnectPinCallback _pinCallback;
     MvsConnectCustomHTMLCallback _customHTMLCallback;
     MvsConnectWiFiCallback _wifiCallback;
 
@@ -330,25 +225,15 @@ private:
     String _expectedUserAgent;
 
     // Internal methods
-    bool checkUserAgent();  // Returns true if request is authorized
+    bool checkUserAgent();
     void setupMDNS();
     void setupRoutes();
 
-    // Route handlers - Pin control
+    // Route handlers
     void handleRoot();
-    void handleSetPin();
-    void handleGetPins();
     void handleGetInfo();
-
-    // Route handlers - WiFi transfer
     void handleWiFiTransfer();
     void handleWiFiStatus();
-
-    // HTML generation
-    String generateHTML();
-    String generateCSS();
-    String generateJS();
-    String generatePinCards();
 
     // NVS helpers
     void saveWiFiCredentials(const String& ssid, const String& password);
@@ -357,7 +242,6 @@ private:
     void updateWiFiConnectionStatus();
 
     // Helpers
-    MvsPin* findPin(int pin);
     void log(const String& message);
 };
 
