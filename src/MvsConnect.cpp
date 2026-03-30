@@ -1,6 +1,6 @@
 /*
  * MvsConnect - ESP32 IoT Web Server Library Implementation
- * Version: 1.2.2
+ * Version: 1.2.3
  */
 
 #include "MvsConnect.h"
@@ -48,7 +48,7 @@ MvsConnect::~MvsConnect() {
 void MvsConnect::begin() {
     if (_running) return;
 
-    log("MvsConnect v1.2.2 starting...");
+    log("MvsConnect v1.2.3 starting...");
     log("Device: " + _deviceName + " (v" + _version + ")");
 
     // Create web server
@@ -101,6 +101,10 @@ bool MvsConnect::connectToSavedWiFi(unsigned long timeout) {
     }
 
     log("Connecting to saved WiFi: " + ssid);
+
+    // Disconnect any active/pending connection to avoid "cannot set config" error
+    WiFi.disconnect(false);
+    delay(200);
 
     _lastSSID = ssid;
     _isConnecting = true;
@@ -408,6 +412,10 @@ void MvsConnect::handleWiFiTransfer() {
 
     // Save credentials to NVS
     saveWiFiCredentials(ssid, password);
+
+    // Disconnect any active/pending WiFi connection first
+    WiFi.disconnect(false);
+    delay(200);
 
     // Start connection
     _lastSSID = ssid;
