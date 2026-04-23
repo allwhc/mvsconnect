@@ -32,6 +32,12 @@ MvsConnect::MvsConnect(const char* deviceName, const char* version, int port) {
     _wifiStatus = "READY";
     _userAgentAuthEnabled = false;
     _expectedUserAgent = MVSCONNECT_DEFAULT_USER_AGENT;
+    _mdnsStarted = false;
+    _lastMdnsCheckMs = 0;
+}
+
+void MvsConnect::setDeviceName(const String& name) {
+    _deviceName = name;
 }
 
 MvsConnect::~MvsConnect() {
@@ -80,6 +86,19 @@ void MvsConnect::handle() {
 
     // Update WiFi connection status
     updateWiFiConnectionStatus();
+
+    // Ensure mDNS is advertised whenever WiFi is up. Covers cases where WiFi
+    // connected outside MvsConnect's own connect paths (e.g. firmware-level
+    // retries after an initial failure).
+    unsigned long now = millis();
+    if (now - _lastMdnsCheckMs >= 2000) {
+        _lastMdnsCheckMs = now;
+        if (WiFi.status() == WL_CONNECTED && !_mdnsStarted) {
+            setupMDNS();
+        } else if (WiFi.status() != WL_CONNECTED && _mdnsStarted) {
+            _mdnsStarted = false;
+        }
+    }
 }
 
 // ============================================
@@ -322,8 +341,10 @@ void MvsConnect::setupMDNS() {
         MDNS.addServiceTxt("http", "tcp", "version", _version.c_str());
         MDNS.addService("mvstech", "tcp", _port);
 
+        _mdnsStarted = true;
         log("mDNS started: " + mdnsName + ".local (" + WiFi.localIP().toString() + ")");
     } else {
+        _mdnsStarted = false;
         log("mDNS failed to start");
     }
 }

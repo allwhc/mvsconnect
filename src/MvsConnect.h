@@ -94,6 +94,12 @@ public:
     void begin();
 
     /**
+     * Override the device name (used for mDNS) before calling begin().
+     * Useful when the name depends on runtime data like the device code.
+     */
+    void setDeviceName(const String& name);
+
+    /**
      * Handle web requests - call in loop()
      */
     void handle();
@@ -223,6 +229,10 @@ private:
     // User-Agent authentication
     bool _userAgentAuthEnabled;
     String _expectedUserAgent;
+
+    // mDNS state — tracked so handle() can (re)start it whenever WiFi is up
+    bool _mdnsStarted;
+    unsigned long _lastMdnsCheckMs;
 
     // Internal methods
     bool checkUserAgent();
